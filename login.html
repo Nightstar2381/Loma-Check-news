@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ</title>
+    <script src="https://unpkg.com/@supabase/supabase-js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background-color: #f4f4f4; }
+        .container { margin-top: 50px; }
+        input {
+            padding: 10px;
+            margin: 10px;
+            width: 300px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #d32f2f;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover { background: #b71c1c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>เข้าสู่ระบบ</h2>
+        <input type="email" id="email" placeholder="อีเมล">
+        <input type="password" id="password" placeholder="รหัสผ่าน" autocomplete="current-password">
+        <button id="loginBtn">ล็อกอิน</button>
+        <p>ยังไม่มีบัญชี? <a href="register.html">สมัครสมาชิก</a></p>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", async function () {
+            console.log("📌 กำลังโหลด Supabase...");
+
+            // ✅ ตรวจสอบว่ามี Supabase หรือไม่
+            if (typeof supabase === "undefined") {
+                console.error("❌ Supabase ไม่ถูกโหลด! ตรวจสอบ URL ของ CDN");
+                alert("❌ โหลด Supabase ไม่สำเร็จ กรุณารีเฟรชหน้าเว็บ");
+                return;
+            }
+
+            // ✅ ตั้งค่า Supabase Client
+            const supabaseUrl = "https://zfdecmvrvmdvwksvivwd.supabase.co";
+            const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpmZGVjbXZydm1kdndrc3ZpdndkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE3MjAwMDQsImV4cCI6MjA1NzI5NjAwNH0.bDzI0gWKFF_lQRbjL5WOYIG0h1fFBQF8MxMPXWH_rEg";
+
+            window.supabase = supabase.createClient(supabaseUrl, supabaseKey);
+            console.log("✅ Supabase Client Initialized:", supabase);
+
+            document.getElementById("loginBtn").addEventListener("click", async function () {
+                const email = document.getElementById("email").value.trim();
+                const password = document.getElementById("password").value.trim();
+
+                if (!email || !password) {
+                    alert("❌ กรุณากรอกอีเมลและรหัสผ่าน");
+                    return;
+                }
+
+                try {
+                    console.log("📌 กำลังเข้าสู่ระบบด้วยอีเมล:", email);
+
+                    // ✅ ล็อกอิน Supabase
+                    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+                    if (error) {
+                        console.error("❌ Login Error:", error.message);
+                        alert("❌ ล็อกอินล้มเหลว: " + error.message);
+                        return;
+                    }
+
+                    console.log("✅ เข้าสู่ระบบสำเร็จ:", data);
+
+                    // ✅ ตรวจสอบว่า Authenticated User มี ID หรือไม่
+                    const userId = data.user?.id;
+                    if (!userId) {
+                        alert("❌ ไม่สามารถดึงข้อมูลผู้ใช้ได้");
+                        return;
+                    }
+
+                    // ✅ ดึงข้อมูล role ของผู้ใช้จากตาราง users
+                    const { data: userData, error: userError } = await supabase
+                        .from('users')
+                        .select('role')
+                        .eq('id', userId)
+                        .single();
+
+                    if (userError) {
+                        console.error("❌ ดึงข้อมูล role ไม่สำเร็จ:", userError.message);
+                        alert("❌ ไม่สามารถดึงข้อมูลผู้ใช้ได้");
+                        return;
+                    }
+
+                    alert(`✅ เข้าสู่ระบบสำเร็จ! สถานะของคุณ: ${userData.role}`);
+
+                    // ✅ เปลี่ยนเส้นทางไปยัง Dashboard ตาม role ของผู้ใช้
+                    if (userData.role === "admin") {
+                        window.location.href = "admin_dashboard.html";
+                    } else {
+                        window.location.href = "index.html";
+                    }
+                } catch (error) {
+                    console.error("❌ เกิดข้อผิดพลาดระหว่างล็อกอิน:", error.message);
+                    alert("❌ ล็อกอินล้มเหลว: " + error.message);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

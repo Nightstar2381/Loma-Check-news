@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Fake News Checker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- ✅ โหลด Supabase SDK ✅ -->
+    <script src="https://unpkg.com/@supabase/supabase-js"></script>
+
+    <style>
+        body { background-color: #f8f9fa; }
+        .container { margin-top: 30px; }
+        .card { margin-bottom: 20px; }
+        .btn-approve { background-color: #28a745; color: white; }
+        .btn-reject { background-color: #dc3545; color: white; }
+        .btn-logout { background-color: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="text-center my-4">🛠 ระบบจัดการข่าวปลอม (Admin)</h2>
+        <button id="logoutBtn" class="btn btn-logout mb-3">🚪 ออกจากระบบ</button>
+        <div class="row" id="newsContainer"></div>
+    </div>
+
+    <script>
+        // ✅ ตั้งค่า Supabase
+        const supabaseUrl = "https://zfdecmvrvmdvwksvivwd.supabase.co";
+        const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        document.addEventListener("DOMContentLoaded", async function () {
+            // ✅ ตรวจสอบว่าเป็นแอดมินหรือไม่
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                alert("❌ กรุณาเข้าสู่ระบบก่อน!");
+                window.location.href = "login.html";
+                return;
+            }
+
+            const { data: userData, error: userError } = await supabase
+                .from("users")
+                .select("role")
+                .eq("email", user.email)
+                .single();
+
+            if (userError || userData.role !== "admin") {
+                alert("❌ คุณไม่มีสิทธิ์เข้าถึงหน้านี้!");
+                window.location.href = "index.html";
+                return;
+            }
+
+            loadPendingNews();
+        });
+
+        // ✅ โหลดข่าวที่รอการตรวจสอบ
+        async function loadPendingNews() {
+            const newsContainer = document.getElementById("newsContainer");
+            newsContainer.innerHTML = "";
+            
+            const { data, error } = await supabase.from("pending_news").select("*").order("created_at", { ascending: false });
+            if (error) {
+                console.error("❌ Error fetching news:", error);
+                return;
+            }
+            
+            data.forEach(news => {
+                newsContainer.innerHTML += `
+                    <div class="col-md-4">
+                        <div class="card">
+                            <img src="${news.imageUrl}" class="card-img-top" alt="News Image">
+                            <div class="card-body">
+                                <h5 class="card-title">${news.title}</h5>
+                                <p class="card-text">${news.description.substring(0, 100)}...</p>
+                                <a href="${news.url}" class="btn btn-info" target="_blank">🔗 อ่านเพิ่มเติม</a>
+                                <button class="btn btn-approve" onclick="approveNews('${news.id}')">✅ อนุมัติ</button>
+                                <button class="btn btn-reject" onclick="deleteNews('${news.id}')">❌ ลบ</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // ✅ อนุมัติข่าว
+        async function approveNews(newsId) {
+            const { data, error } = await supabase.from("pending_news").select("*").eq("id", newsId).single();
+            if (error) {
+                console.error("❌ Error approving news:", error);
+                return;
+            }
+
+            const { error: insertError } = await supabase.from("verified_news").insert([{ ...data, approved: true }]);
+            if (insertError) {
+                console.error("❌ Error inserting into verified_news:", insertError);
+                return;
+            }
+
+            await supabase.from("pending_news").delete().eq("id", newsId);
+            alert("✅ อนุมัติข่าวเรียบร้อย!");
+            loadPendingNews();
+        }
+
+        // ✅ ลบข่าว
+        async function deleteNews(newsId) {
+            if (confirm("❗ คุณแน่ใจหรือไม่ว่าต้องการลบข่าวนี้?")) {
+                const { error } = await supabase.from("pending_news").delete().eq("id", newsId);
+                if (error) {
+                    console.error("❌ Error deleting news:", error);
+                    return;
+                }
+                alert("🗑 ข่าวถูกลบแล้ว");
+                loadPendingNews();
+            }
+        }
+
+        // ✅ ออกจากระบบ
+        document.getElementById("logoutBtn").addEventListener("click", async () => {
+            await supabase.auth.signOut();
+            alert("🚪 ออกจากระบบเรียบร้อย");
+            window.location.href = "login.html";
+        });
+    </script>
+</body>
+</html>

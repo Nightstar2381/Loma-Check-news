@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake News Checker - ส่งข่าว</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- ✅ โหลด Supabase SDK ✅ -->
+    <script src="https://unpkg.com/@supabase/supabase-js"></script>
+
+    <style>
+        body { background-color: #f4f4f4; color: #333; font-family: 'Arial', sans-serif; padding-top: 50px; }
+        .card { background-color: #ffffff; border-radius: 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .card-header { background-color: #b71c1c; color: white; text-align: center; font-size: 1.5rem; font-weight: bold; }
+        .container { max-width: 600px; }
+        .btn-primary { background-color: #b71c1c; border: none; }
+        .btn-primary:hover { background-color: #9a1a17; }
+    </style>
+</head>
+<body>
+
+    <div class="container d-flex justify-content-center align-items-center" style="height: 100vh;">
+        <div class="card" style="width: 100%; max-width: 500px;">
+            <div class="card-header">
+                <h4>ส่งข่าวให้แอดมินตรวจสอบ</h4>
+            </div>
+            <div class="card-body">
+                <form id="submitNewsForm">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">หัวข้อข่าว</label>
+                        <input type="text" class="form-control" id="title" placeholder="กรอกหัวข้อข่าว" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">รายละเอียดข่าว</label>
+                        <textarea class="form-control" id="description" placeholder="กรอกรายละเอียดข่าว" rows="4" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="image" class="form-label">อัปโหลดภาพข่าว</label>
+                        <input type="file" class="form-control" id="image" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="url" class="form-label">ลิงก์ข่าว</label>
+                        <input type="url" class="form-control" id="url" placeholder="กรอกลิงก์ข่าว" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">ส่งข่าว</button>
+                </form>
+                <button onclick="window.location.href='index.html'" class="btn btn-secondary w-100 mt-3">กลับหน้าหลัก</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", async function() {
+            console.log("📌 กำลังโหลด Supabase...");
+
+            // ✅ ตรวจสอบว่า Supabase SDK ถูกโหลดหรือไม่
+            if (typeof window.supabase === "undefined") {
+                console.error("❌ Supabase ยังไม่ถูกโหลด! ตรวจสอบลิงก์ <script>");
+                alert("❌ เกิดข้อผิดพลาด: ไม่สามารถโหลด Supabase ได้ กรุณารีเฟรชหน้าเว็บ!");
+                return;
+            }
+
+            // ✅ ตั้งค่า Supabase Client อย่างถูกต้อง
+            const supabaseUrl = "https://zfdecmvrvmdvwksvivwd.supabase.co";
+            const supabaseKey = "YOUR_SUPABASE_ANON_KEY";  // 🔥 ใส่ API Key ที่ถูกต้อง
+            window.supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+            console.log("✅ Supabase Client Initialized:", supabase);
+
+            document.getElementById("submitNewsForm").addEventListener("submit", async function(event) {
+                event.preventDefault();
+
+                const title = document.getElementById("title").value;
+                const description = document.getElementById("description").value;
+                const url = document.getElementById("url").value;
+                const file = document.getElementById("image").files[0];
+
+                if (!file) {
+                    alert("❌ กรุณาเลือกไฟล์รูปภาพก่อนส่งข่าว!");
+                    return;
+                }
+
+                try {
+                    console.log("📌 อัปโหลดภาพไปยัง Cloudinary...");
+
+                    // ✅ ใส่ค่าจาก Cloudinary ที่ถูกต้อง
+                    const cloudinaryName = "dxrqema2e";  // 🔥 Cloud Name ของคุณ
+                    const uploadPreset = "news_upload"; // 🔥 Upload Preset ที่ตั้งไว้
+
+                    // ✅ อัปโหลดรูปภาพไปที่ Cloudinary
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    formData.append("upload_preset", uploadPreset);
+
+                    const cloudinaryResponse = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryName}/image/upload`, {
+                        method: "POST",
+                        body: formData
+                    });
+
+                    if (!cloudinaryResponse.ok) throw new Error("❌ อัปโหลดรูปภาพล้มเหลว - ตรวจสอบ Cloudinary API Key");
+
+                    const cloudinaryData = await cloudinaryResponse.json();
+                    const imageUrl = cloudinaryData.secure_url;
+                    console.log("✅ อัปโหลดสำเร็จ:", imageUrl);
+
+                    console.log("📌 บันทึกข้อมูลข่าวลง Supabase...");
+
+                    // ✅ บันทึกข่าวลง Supabase
+                    const { data, error } = await supabase.from("pending_news").insert([
+                        {
+                            title: title,
+                            description: description,
+                            imageUrl: imageUrl,
+                            url: url,
+                            approved: false,
+                            created_at: new Date().toISOString()
+                        }
+                    ]);
+
+                    if (error) throw error;
+
+                    alert("✅ ข่าวของคุณได้ถูกส่งไปยังแอดมินแล้ว!");
+                    window.location.href = "index.html";
+                } catch (error) {
+                    console.error("❌ Error:", error);
+                    alert("❌ เกิดข้อผิดพลาด: " + error.message);
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
